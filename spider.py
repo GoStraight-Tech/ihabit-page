@@ -45,85 +45,6 @@ USER_AGENTS = [
     "Presto/2.9.168 Version/11.52"
 ]
 
-
-def parseUrl(url):
-    tenant = url.split('/')[2]
-    mail = url.split('/')[6]
-    return tenant, mail
-
-
-def getCookies(url):
-    headers = {'User-Agent': random.choice(USER_AGENTS)}
-    response = req.get(url, headers=headers)
-    cookies = response.cookies.get_dict()
-    # print('提取 FedAuth:' + cookies['FedAuth'])
-    return cookies
-
-
-def getAccessToken(url):
-    tenant, mail = parseUrl(url)
-    cookies = getCookies(url)
-    url = "https://" + tenant + "/personal/" + mail + \
-        "/_api/web/GetListUsingPath(DecodedUrl=@a1)/RenderListDataAsStream?@a1='/personal/" + mail + \
-        "/Documents'&RootFolder=/personal/" + mail + \
-        "/Documents/&TryNewExperienceSingle=TRUE"
-
-    headers = {
-        'Accept': 'application/json;odata=verbose',
-        'Content-Type': 'application/json;odata=verbose',
-        'User-Agent': random.choice(USER_AGENTS)
-    }
-
-    payload = {
-        "parameters": {
-            "__metadata": {
-                "type": "SP.RenderListDataParameters"
-            },
-            "RenderOptions": 136967,
-            "AllowMultipleValueFilterForTaxonomyFields": True,
-            "AddRequiredFields": True
-        }
-    }
-
-    response = req.post(url,
-                        cookies=cookies,
-                        headers=headers,
-                        data=json.dumps(payload))
-
-    payload = json.loads(response.text)
-    token = payload['ListSchema']['.driveAccessToken'][13:]
-    api_url = payload['ListSchema']['.driveUrl'] + '/'
-    shared_folder = payload['ListData']['Row'][0]['FileRef'].split('/')[-1]
-    # print('提取 目录名:' + shared_folder)
-    # print('提取 AccessToken:' + token)
-    # print('提取 api_url:' + api_url)
-    return token, api_url, shared_folder
-
-
-def uploadImage(name, file):
-    """ 
-    OneDrive 上传
-    """
-    token, api_url, shared_folder = getAccessToken(secret)
-
-    uploadpath = f'Images/Bing/{name}'
-    headers = {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-    }
-    url = f'{api_url}items/root:/{shared_folder}/{uploadpath}:/content'
-    response = req.put(url, headers=headers, data=file)
-    file_id = json.loads(response.text)['id']
-    headers = {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-    }
-    url = api_url + 'items/' + file_id + '/content'
-    response = req.get(url, headers=headers, allow_redirects=False)
-    download_link = response.headers['Location']
-    print(f'文件上传成功，下载地址：\n{download_link}')
-
-
 def main():
     api_url = 'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US'
     api = req.get(api_url)
@@ -138,8 +59,6 @@ def main():
             open(f'./images/{start_date}.png', 'wb').write(pic.content)
             shutil.copyfile(f'./images/{start_date}.png',
                             f'./images/latest.png')
-            with open(f'./images/{start_date}.png', 'rb+') as f:
-                uploadImage(f'{start_date}.png', f.read())
             print(f'Create {start_date} Image Success!')
         else:
             print(f'Create {start_date} Image Failed!')
